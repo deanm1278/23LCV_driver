@@ -1,0 +1,3 @@
+#!/bin/bash
+
+g++ -o app libmb85rs.cpp mb85rs_test_app.cpp
