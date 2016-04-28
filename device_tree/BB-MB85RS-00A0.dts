@@ -27,7 +27,7 @@
         __overlay__ {
             MB85RS_extra_pins: MB85RS_extra_pins {
                         pinctrl-single,pins = <
-                                0x180 0x27      /* P9_26 gpio, OUTPUT PULLDOWN | MODE7 for alternate cs */
+                                0x180 0x17      /* P9_26 gpio, OUTPUT PULLDOWN | MODE7 for alternate cs */
                 >;
             };
         };

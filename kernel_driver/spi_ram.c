@@ -33,9 +33,9 @@ struct MB85RS {
     u16                     size;
 };
 
-static unsigned int cspin = 16;       ///< Default cs pin is 16
+static unsigned int cspin = 14;       ///< Default cs pin is 16
 module_param(cspin, uint, S_IRUGO);    ///< Param desc. S_IRUGO can be read/not changed
-MODULE_PARM_DESC(cspin, "alternate chip select pin (default=16)");
+MODULE_PARM_DESC(cspin, "alternate chip select pin (default=14)");
 
 /*
 static unsigned int holdpin = xx;       ///< Default hold pin is xx
@@ -140,7 +140,9 @@ static ssize_t data_show(struct device *dev, struct device_attribute *attr, char
     unsigned char txbuf[] = {OPCODE_READ, (u8)(drv->addr >> 8), (u8)(drv->addr & 0xFF)};
     int status;
     
+    gpio_set_value(cspin, 0);
     status = spi_write_then_read(drv->myspi, txbuf, 3, buf, drv->size);
+    gpio_set_value(cspin, 1);
     
     return drv->size;
 }

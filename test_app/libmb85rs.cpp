@@ -58,7 +58,7 @@ int MB85RS::read(uint16_t addr, void *buf, size_t size){
     perror("MB85RS: failed to set read address");
     return -1;
    }
-   ad << addr;
+   ad << hex << addr;
    ad.close();
    
    ifstream is((path + "data").c_str(), std::ios::binary);
@@ -71,12 +71,12 @@ int MB85RS::write(uint16_t addr, void *buf, size_t size){
    ofstream fs, ad;
    
    //set address
-   ad.open((path + "addr").c_str());
+   ad.open((path + "addr").c_str()); 
    if (!ad.is_open()){
     perror("MB85RS: failed to set read address");
     return -1;
    }
-   ad << addr;
+   ad << hex << addr;
    ad.close();
    
    //write the data!
@@ -109,4 +109,3 @@ int MB85RS::listen(bool state){
 MB85RS::~MB85RS(){
     
 }
-
