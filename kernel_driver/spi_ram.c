@@ -14,7 +14,6 @@ MODULE_AUTHOR("Dean Miller");
 MODULE_DESCRIPTION("Linux Driver for R_23LCV SPI ram device.");
 MODULE_VERSION("0.1");
 
-#define SPI_MAX_SPEED   400000
 #define DATAWIDTH       8
 #define BYTES_AVAILABLE 65536
 
@@ -35,6 +34,10 @@ struct R_23LCV {
 static unsigned int cspin = 14;       ///< Default cs pin is 16
 module_param(cspin, uint, S_IRUGO);    ///< Param desc. S_IRUGO can be read/not changed
 MODULE_PARM_DESC(cspin, "alternate chip select pin (default=14)");
+
+static unsigned int SPI_MAX_SPEED = 4000000; // Default SPI max speed is 4000000
+module_param(SPI_MAX_SPEED, uint, S_IRUGO);
+MODULE_PARM_DESC(SPI_MAX_SPEED, "SPI max speed (default=4000000)");
 
 //show the current address pointer
 static ssize_t addr_show(struct device *dev, struct device_attribute *attr, char *buf)
