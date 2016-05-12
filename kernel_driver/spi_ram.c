@@ -11,11 +11,11 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Dean Miller");
-MODULE_DESCRIPTION("Linux Driver for R_23LCV SPI ram device.");
+MODULE_DESCRIPTION("Linux Driver for 23LCVxxx SPI ram device.");
 MODULE_VERSION("0.1");
 
 #define DATAWIDTH       8
-#define BYTES_AVAILABLE 65536
+#define BYTES_AVAILABLE 65536 //change for 23LCV1024
 
 #define OPCODE_READ     0x03        /* Read Memory */
 #define OPCODE_WRITE    0x02        /* Write Memory */
