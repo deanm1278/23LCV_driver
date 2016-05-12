@@ -31,81 +31,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "libmb85rs.h"
-#include <iostream>
-#include <fstream>
+#include <string>
+#include <stdint.h>
 
-using namespace std;
-
-MB85RS::MB85RS(string path){
-    this->path = path;
-}
-
-int MB85RS::read(uint16_t addr, void *buf, size_t size){
-   ofstream sz, ad;
-   //set read size
-   sz.open((path + "size").c_str());
-   if (!sz.is_open()){
-    perror("MB85RS: failed to set read size ");
-    return -1;
-   }
-   sz << (uint16_t)size;
-   sz.close();
-   
-   //set address
-   ad.open((path + "addr").c_str());
-   if (!ad.is_open()){
-    perror("MB85RS: failed to set read address");
-    return -1;
-   }
-   ad << hex << addr;
-   ad.close();
-   
-   ifstream is((path + "data").c_str(), std::ios::binary);
-   is.read((char *)buf, size);
-   
-   return 0;
-}
-
-int MB85RS::write(uint16_t addr, void *buf, size_t size){
-   ofstream fs, ad;
-   
-   //set address
-   ad.open((path + "addr").c_str()); 
-   if (!ad.is_open()){
-    perror("MB85RS: failed to set read address");
-    return -1;
-   }
-   ad << hex << addr;
-   ad.close();
-   
-   //write the data!
-   fs.open((path + "data").c_str());
-   if (!fs.is_open()){
-    perror("MB85RS: write failed to open file ");
-    return -1;
-   }
-   for(int i = 0; i < size; i++)
-   {
-      fs << ((unsigned char *)buf)[i]; 
-   }
-   fs.close();
-   return 0;
-}
-
-int MB85RS::listen(bool state){
-    ofstream fs;
-   
-   //set address
-   fs.open((path + "listen").c_str());
-   if (!fs.is_open()){
-    perror("MB85RS: failed to start listen");
-    return -1;
-   }
-   fs << state;
-   fs.close();
-}
-
-MB85RS::~MB85RS(){
+class R_23LCV {
+private:
+    std::string path;
     
-}
+public:
+    R_23LCV(std::string path);
+    int read(uint16_t addr, void *buf, size_t size); //read a number of bytes from the device to a buffer
+    int write(uint16_t addr, void *buf, size_t size); //write a number of bytes to the device from a buffer
+    int listen(bool state); //put the device in write mode and listen for any data on the bus
+    virtual ~R_23LCV();
+    
+    uint16_t addr;
+};

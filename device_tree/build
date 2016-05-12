@@ -2,4 +2,4 @@
 
 echo "Compiling the overlay from .dts to .dtbo"
 
-dtc -O dtb -o BB-MB85RS-00A0.dtbo -b 0 -@ BB-MB85RS-00A0.dts
+dtc -O dtb -o BB-23LCV-00A0.dtbo -b 0 -@ BB-23LCV-00A0.dts

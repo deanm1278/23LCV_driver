@@ -7,26 +7,25 @@
 #include <linux/spi/spi.h>    // Required for SPI stuff
 #include <linux/proc_fs.h>
 
-#define MB85RS_DEBUG
+#define R_23LCV_DEBUG
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Dean Miller");
-MODULE_DESCRIPTION("Linux Driver for MB85RS SPI ram device.");
+MODULE_DESCRIPTION("Linux Driver for R_23LCV SPI ram device.");
 MODULE_VERSION("0.1");
 
 #define SPI_MAX_SPEED   400000
 #define DATAWIDTH       8
-#define BYTES_AVAILABLE 8192
+#define BYTES_AVAILABLE 65536
 
-#define OPCODE_WREN     0b0110    /* Write Enable Latch */
-#define OPCODE_WRDI     0b0100    /* Reset Write Enable Latch */
-#define OPCODE_RDSR     0b0101    /* Read Status Register */
-#define OPCODE_WRSR     0b0001    /* Write Status Register */
-#define OPCODE_READ     0b0011    /* Read Memory */
-#define OPCODE_WRITE    0b0010    /* Write Memory */
-#define OPCODE_RDID     0b10011111  /* Read Device ID */
+#define OPCODE_READ     0x03        /* Read Memory */
+#define OPCODE_WRITE    0x02        /* Write Memory */
+#define OPCODE_RSTIO    0xFF        /* Reset dual IO access */
+#define OPCODE_EDIO     0x3B        /* Enter Dual IO access */
+#define OPCODE_RDMR     0x05        /* Read mode register */
+#define OPCODE_WRMR     0x01        /* Write mode register */
 
-struct MB85RS {
+struct R_23LCV {
     struct  spi_device      *myspi;
     unsigned int            listenstate;
     u16                     addr;
@@ -37,16 +36,10 @@ static unsigned int cspin = 14;       ///< Default cs pin is 16
 module_param(cspin, uint, S_IRUGO);    ///< Param desc. S_IRUGO can be read/not changed
 MODULE_PARM_DESC(cspin, "alternate chip select pin (default=14)");
 
-/*
-static unsigned int holdpin = xx;       ///< Default hold pin is xx
-module_param(holdpin, uint, S_IRUGO); 
-MODULE_PARM_DESC(holdpin, "alternate chip select pin (default=xx)");
-*/
-
 //show the current address pointer
 static ssize_t addr_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct MB85RS *drv = dev_get_drvdata(dev);
+    struct R_23LCV *drv = dev_get_drvdata(dev);
     
     return sprintf(buf, "0x%x\n", drv->addr);
 }
@@ -54,7 +47,7 @@ static ssize_t addr_show(struct device *dev, struct device_attribute *attr, char
 //set the current address pointer
 static ssize_t addr_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
    unsigned int addr;                     // Using a variable to validate the data sent
-   struct MB85RS *drv = dev_get_drvdata(dev);
+   struct R_23LCV *drv = dev_get_drvdata(dev);
    
    sscanf(buf, "%x", &addr);             // Read in the size as an unsigned int
    if (addr <=BYTES_AVAILABLE){        // dont allow address past max capacity
@@ -66,7 +59,7 @@ static ssize_t addr_store(struct device *dev, struct device_attribute *attr, con
 //set the read size
 static ssize_t size_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
    unsigned int size;                     // Using a variable to validate the data sent
-   struct MB85RS *drv = dev_get_drvdata(dev);
+   struct R_23LCV *drv = dev_get_drvdata(dev);
    
    sscanf(buf, "%du", &size);             // Read in the size as an unsigned int
    if ((size>0)&&(size<=BYTES_AVAILABLE)){        // Must be 1 byte or greater, less than the max size of the chip
@@ -78,7 +71,7 @@ static ssize_t size_store(struct device *dev, struct device_attribute *attr, con
 //Print read size
 static ssize_t size_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct MB85RS *drv = dev_get_drvdata(dev);
+    struct R_23LCV *drv = dev_get_drvdata(dev);
     
     return sprintf(buf, "%d\n", drv->size);
 }
@@ -86,7 +79,7 @@ static ssize_t size_show(struct device *dev, struct device_attribute *attr, char
 //show the current listen state
 static ssize_t listen_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct MB85RS *drv = dev_get_drvdata(dev);
+    struct R_23LCV *drv = dev_get_drvdata(dev);
     
     return sprintf(buf, "%d\n", drv->listenstate);
 }
@@ -94,23 +87,13 @@ static ssize_t listen_show(struct device *dev, struct device_attribute *attr, ch
 //set the listen state
 static ssize_t listen_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
    unsigned int state, status;                     // Using a variable to validate the data sent
-   struct MB85RS *drv = dev_get_drvdata(dev);
+   struct R_23LCV *drv = dev_get_drvdata(dev);
    unsigned char txbuf[3];
-   u8 code;
    
    sscanf(buf, "%du", &state);             // Read in the size as an unsigned int
    if ((state == 0 || state == 1) && state != drv->listenstate){        // Must be 1 byte or greater, less than the max size of the chip
       drv->listenstate = state;
       if(state == 1){
-            //start listening
-            code = OPCODE_WREN;
-            gpio_set_value(cspin, 0);
-            status = spi_write(drv->myspi, &code, 1);
-            if (status < 0)
-            printk(KERN_ERR "RAM: FAILURE: spi_write() failed with status %d\n",
-                    status);
-            gpio_set_value(cspin, 1);
-            
             txbuf[0] = OPCODE_WRITE;
             txbuf[1] = (u8)(drv->addr >> 8);
             txbuf[2] = (u8)(drv->addr & 0xFF);
@@ -121,11 +104,6 @@ static ssize_t listen_store(struct device *dev, struct device_attribute *attr, c
       else{
           //stop listening
            gpio_set_value(cspin, 1);
-           
-           gpio_set_value(cspin, 0);
-           code = OPCODE_WRDI;
-           status = spi_write(drv->myspi, &code, 1);
-           gpio_set_value(cspin, 1);
       }
    }
    return state;
@@ -135,7 +113,7 @@ static ssize_t listen_store(struct device *dev, struct device_attribute *attr, c
 //copy stored data to userspace
 static ssize_t data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    struct MB85RS *drv = dev_get_drvdata(dev);
+    struct R_23LCV *drv = dev_get_drvdata(dev);
     
     unsigned char txbuf[] = {OPCODE_READ, (u8)(drv->addr >> 8), (u8)(drv->addr & 0xFF)};
     int status;
@@ -150,18 +128,8 @@ static ssize_t data_show(struct device *dev, struct device_attribute *attr, char
 //write to RAM
 static ssize_t data_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
         int status;
-        u8 code;
-        struct MB85RS *drv = dev_get_drvdata(dev);
+        struct R_23LCV *drv = dev_get_drvdata(dev);
         unsigned char txbuf[count + 3];
-        
-        //enable writing
-        code = OPCODE_WREN;
-        gpio_set_value(cspin, 0);
-        status = spi_write(drv->myspi, &code, 1);
-        if (status < 0)
-            printk(KERN_ERR "RAM: FAILURE: spi_write() failed with status %d\n",
-                    status);
-        gpio_set_value(cspin, 1);
         
         txbuf[0] = OPCODE_WRITE;
         txbuf[1] = (u8)(drv->addr >> 8);
@@ -171,12 +139,6 @@ static ssize_t data_store(struct device *dev, struct device_attribute *attr, con
         //write the data
         gpio_set_value(cspin, 0);
         status = spi_write(drv->myspi, txbuf, count + 3);
-        gpio_set_value(cspin, 1);
-        
-        //disable writing
-        code = OPCODE_WRDI;
-        gpio_set_value(cspin, 0);
-        status = spi_write(drv->myspi, &code, 1);
         gpio_set_value(cspin, 1);
         
         return count;
@@ -202,18 +164,18 @@ static const struct file_operations fifo_fops = {
     .owner      = THIS_MODULE,
 };
 
-static int MB85RS_spi_probe(struct spi_device *spi){
+static int R_23LCV_spi_probe(struct spi_device *spi){
     int err = 0;
-    struct MB85RS *drv;
+    struct R_23LCV *drv;
     struct device *dev;
     
 #ifdef RAM_DEBUG
     printk(KERN_INFO "RAM: probing device...\n");
 #endif
     
-    drv = kzalloc(sizeof(struct MB85RS), GFP_KERNEL);
+    drv = kzalloc(sizeof(struct R_23LCV), GFP_KERNEL);
     if(!drv){
-        printk(KERN_ERR "RAM: could not allocate MB85RS struct.\n");
+        printk(KERN_ERR "RAM: could not allocate R_23LCV struct.\n");
         return -1;
     }
     
@@ -226,12 +188,6 @@ static int MB85RS_spi_probe(struct spi_device *spi){
     
     dev = &spi->dev;
     dev_set_drvdata(dev, drv);
-    
-    /* hold functionality not yet implemented
-    gpio_request(drv->holdpin, "sysfs");
-    gpio_direction_output(drv->holdpin, 0);
-    gpio_export(drv->holdpin, false);          // export the hold pin
-    */
     
     gpio_request(cspin, "sysfs");
     gpio_direction_output(cspin, 1);
@@ -248,24 +204,18 @@ static int MB85RS_spi_probe(struct spi_device *spi){
     return err;
     
 faildreg:
-    //gpio_unexport(drv->holdpin);
-    //gpio_free(drv->holdpin);
-    
     gpio_unexport(cspin);
     gpio_free(cspin);
     
     return -1;
 }
 
-static int MB85RS_spi_remove(struct spi_device *spi){
+static int R_23LCV_spi_remove(struct spi_device *spi){
     int err = 0;
-    struct MB85RS *drv = spi_get_drvdata(spi);
+    struct R_23LCV *drv = spi_get_drvdata(spi);
     struct device *dev = &spi->dev;
     
     printk(KERN_INFO "DRV: removing device...\n");
-    
-    //gpio_unexport(drv->holdpin);
-    //gpio_free(drv->holdpin);
     
     gpio_unexport(cspin);
     gpio_free(cspin);
@@ -277,34 +227,34 @@ static int MB85RS_spi_remove(struct spi_device *spi){
     return err;
 }
 
-static const struct of_device_id MB85RS_of_match[] = {
-	{ .compatible = "MB85RS", },
+static const struct of_device_id R_23LCV_of_match[] = {
+	{ .compatible = "mcp,23lcv", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, MB85RS_of_match);
+MODULE_DEVICE_TABLE(of, R_23LCV_of_match);
 
-static struct spi_driver MB85RS_spi_driver = {
+static struct spi_driver R_23LCV_spi_driver = {
 	.driver = {
                 .owner  = THIS_MODULE,
 		.name	= "spi_ram",
-		.of_match_table	= MB85RS_of_match,
+		.of_match_table	= R_23LCV_of_match,
 	},
-	.probe		= MB85RS_spi_probe,
-	.remove		= MB85RS_spi_remove,
+	.probe		= R_23LCV_spi_probe,
+	.remove		= R_23LCV_spi_remove,
 };
 
-static int __init MB85RS_init(void){
+static int __init R_23LCV_init(void){
     int err = 0;
     
     printk(KERN_INFO "RAM: initializing module...\n");
-    err = spi_register_driver(&MB85RS_spi_driver);
+    err = spi_register_driver(&R_23LCV_spi_driver);
     return err;
 }
 
-static void __exit MB85RS_exit(void){
+static void __exit R_23LCV_exit(void){
     printk(KERN_INFO "RAM: exiting module...\n");
-    spi_unregister_driver(&MB85RS_spi_driver);
+    spi_unregister_driver(&R_23LCV_spi_driver);
 }
 
-module_init(MB85RS_init);
-module_exit(MB85RS_exit);
+module_init(R_23LCV_init);
+module_exit(R_23LCV_exit);
